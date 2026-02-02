@@ -92,7 +92,7 @@ app.onError((err, c) => {
 });
 
 // Start server
-const port = parseInt(process.env.PORT || '8080');
+const port = parseInt(process.env.PORT || '3001');
 
 console.log(`🚀 EduForge API starting on port ${port}...`);
 
