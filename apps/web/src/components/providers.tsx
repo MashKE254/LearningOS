@@ -34,7 +34,7 @@ interface SignupData {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // API base URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 // Check if backend is available

@@ -1,19 +1,92 @@
-import { proxyToBackend } from '@/lib/api';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
-  return proxyToBackend(path, request);
+const API_URL = process.env.API_URL || 'http://localhost:3001/api/v1';
+
+async function proxyRequest(
+  request: NextRequest,
+  slug: string[],
+  method: string
+) {
+  const path = slug.join('/');
+  const url = `${API_URL}/tutor/${path}`;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
+
+  const cookies = request.headers.get('Cookie');
+  if (cookies) {
+    headers['Cookie'] = cookies;
+  }
+
+  const options: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (['POST', 'PUT', 'PATCH'].includes(method)) {
+    try {
+      const body = await request.json();
+      options.body = JSON.stringify(body);
+    } catch {
+      // No body or invalid JSON
+    }
+  }
+
+  try {
+    const response = await fetch(url, options);
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Tutor API proxy error:', error);
+    return NextResponse.json(
+      { error: 'Failed to connect to API server' },
+      { status: 502 }
+    );
+  }
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
-  return proxyToBackend(path, request);
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
+  const { slug } = await params;
+  return proxyRequest(request, slug, 'GET');
 }
 
-export async function PUT(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
-  return proxyToBackend(path, request);
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
+  const { slug } = await params;
+  return proxyRequest(request, slug, 'POST');
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
+  const { slug } = await params;
+  return proxyRequest(request, slug, 'PUT');
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
+  const { slug } = await params;
+  return proxyRequest(request, slug, 'DELETE');
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
+  const { slug } = await params;
+  return proxyRequest(request, slug, 'PATCH');
 }
