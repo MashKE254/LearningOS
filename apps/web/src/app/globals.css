@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import KaTeX for math rendering */
+@import 'katex/dist/katex.min.css';
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 201 100% 48%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 201 100% 48%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 201 100% 48%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 201 100% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
+}
+
+@layer components {
+  /* Chat bubble styles */
+  .chat-bubble {
+    @apply rounded-2xl px-4 py-3 max-w-[85%];
+  }
+
+  .chat-bubble-user {
+    @apply bg-primary-600 text-white ml-auto rounded-br-md;
+  }
+
+  .chat-bubble-assistant {
+    @apply bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-md;
+  }
+
+  /* Mastery level indicators */
+  .mastery-high {
+    @apply bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400;
+  }
+
+  .mastery-medium {
+    @apply bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400;
+  }
+
+  .mastery-low {
+    @apply bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400;
+  }
+
+  /* Thinking indicator animation */
+  .thinking-dots span {
+    animation: thinking 1.5s ease-in-out infinite;
+  }
+
+  .thinking-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .thinking-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  /* Glass morphism cards */
+  .glass-card {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl 
+           border border-gray-200/50 dark:border-gray-700/50 
+           rounded-2xl shadow-lg;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+  }
+
+  /* Knowledge graph node */
+  .knowledge-node {
+    @apply p-3 rounded-xl border-2 transition-all duration-200;
+  }
+
+  .knowledge-node-mastered {
+    @apply border-success-500 bg-success-50 dark:bg-success-900/20;
+  }
+
+  .knowledge-node-learning {
+    @apply border-warning-500 bg-warning-50 dark:bg-warning-900/20;
+  }
+
+  .knowledge-node-struggling {
+    @apply border-danger-500 bg-danger-50 dark:bg-danger-900/20;
+  }
+
+  /* Code block styling */
+  .code-block {
+    @apply bg-gray-900 rounded-lg overflow-hidden;
+  }
+
+  .code-block pre {
+    @apply p-4 overflow-x-auto text-sm;
+  }
+
+  .code-block code {
+    @apply font-mono text-gray-100;
+  }
+
+  /* Math equation styling */
+  .katex-display {
+    @apply my-4 overflow-x-auto py-2;
+  }
+
+  .katex {
+    @apply text-lg;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Text balance for better typography */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Fade mask for overflow content */
+  .fade-mask-b {
+    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+  }
+
+  .fade-mask-t {
+    mask-image: linear-gradient(to top, black 80%, transparent 100%);
+  }
+}
+
+/* Markdown content styling */
+.prose-eduforge {
+  @apply prose prose-gray dark:prose-invert max-w-none;
+}
+
+.prose-eduforge h1,
+.prose-eduforge h2,
+.prose-eduforge h3 {
+  @apply font-display;
+}
+
+.prose-eduforge code:not(pre code) {
+  @apply bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.prose-eduforge pre {
+  @apply bg-gray-900 rounded-lg;
+}
+
+.prose-eduforge blockquote {
+  @apply border-l-4 border-primary-500 bg-primary-50/50 dark:bg-primary-900/20 
+         not-italic rounded-r-lg py-1;
+}
+
+.prose-eduforge img {
+  @apply rounded-lg shadow-lg;
+}
+
+.prose-eduforge table {
+  @apply border-collapse w-full;
+}
+
+.prose-eduforge th,
+.prose-eduforge td {
+  @apply border border-gray-200 dark:border-gray-700 px-4 py-2;
+}
+
+.prose-eduforge th {
+  @apply bg-gray-50 dark:bg-gray-800;
+}

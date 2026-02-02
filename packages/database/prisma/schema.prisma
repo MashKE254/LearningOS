@@ -1,0 +1,631 @@
+// EduForge Database Schema
+// Generative Teaching Infrastructure
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  STUDENT
+  PARENT
+  TEACHER
+  ADMIN
+  INSTITUTION_ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  STUDENT_PRO      // $29/month
+  FAMILY_PRO       // $79/month
+  INSTITUTION      // $14/student/year
+  ENTERPRISE
+}
+
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String?
+  name              String
+  role              UserRole          @default(STUDENT)
+  avatarUrl         String?
+  preferredLanguage String            @default("en")
+  timezone          String            @default("UTC")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  studentProfile    StudentProfile?
+  parentProfile     ParentProfile?
+  teacherProfile    TeacherProfile?
+  subscription      Subscription?
+  sessions          Session[]
+  oauthAccounts     OAuthAccount[]
+}
+
+model OAuthAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   // google, microsoft, clever
+  providerAccountId String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  tier            SubscriptionTier @default(FREE)
+  status          String           @default("active") // active, canceled, past_due
+  stripeCustomerId String?
+  stripeSubscriptionId String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// STUDENT PROFILE & KNOWLEDGE GRAPH
+// ============================================
+
+enum LearningStyle {
+  VISUAL
+  AUDITORY
+  KINESTHETIC
+  READING_WRITING
+  MIXED
+}
+
+model StudentProfile {
+  id                  String              @id @default(cuid())
+  userId              String              @unique
+  dateOfBirth         DateTime?
+  gradeLevel          Int?
+  learningStyle       LearningStyle       @default(MIXED)
+  nativeLanguage      String              @default("en")
+  targetLanguage      String?             // For bilingual learning
+  specialNeeds        String[]            // ADHD, dyslexia, vision issues, etc.
+  interests           String[]            // For contextual learning
+  dailyGoalMinutes    Int                 @default(30)
+  
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments         CurriculumEnrollment[]
+  knowledgeNodes      KnowledgeNode[]
+  learningSessions    LearningSession[]
+  assessments         Assessment[]
+  parentLinks         ParentStudentLink[]
+  classEnrollments    ClassEnrollment[]
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+// The living knowledge graph per student
+model KnowledgeNode {
+  id                String          @id @default(cuid())
+  studentId         String
+  conceptId         String
+  
+  // Mastery tracking (0.0 to 1.0)
+  masteryLevel      Float           @default(0.0)
+  confidence        Float           @default(0.0)
+  
+  // Spaced repetition
+  lastPracticed     DateTime?
+  nextReviewDate    DateTime?
+  reviewCount       Int             @default(0)
+  
+  // Misconception tracking
+  misconceptions    Json[]          // Array of identified misconceptions
+  
+  // Prerequisites mastered
+  prerequisitesMet  Boolean         @default(false)
+  
+  student           StudentProfile  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  concept           Concept         @relation(fields: [conceptId], references: [id])
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@unique([studentId, conceptId])
+  @@index([studentId, masteryLevel])
+}
+
+// ============================================
+// CURRICULUM STRUCTURE (RAG Source)
+// ============================================
+
+model ExamBoard {
+  id          String       @id @default(cuid())
+  name        String       // IGCSE, KCSE, CBSE, Common Core, IB, A-Level, AP
+  country     String
+  description String?
+  
+  curricula   Curriculum[]
+}
+
+model Curriculum {
+  id              String                  @id @default(cuid())
+  examBoardId     String
+  name            String                  // "CIE Biology 9700"
+  subject         String
+  yearGroup       String?                 // "Year 10", "Grade 11"
+  version         String                  @default("2024")
+  
+  examBoard       ExamBoard               @relation(fields: [examBoardId], references: [id])
+  units           CurriculumUnit[]
+  enrollments     CurriculumEnrollment[]
+  examPapers      ExamPaper[]
+  
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  
+  @@unique([examBoardId, name, version])
+}
+
+model CurriculumUnit {
+  id              String           @id @default(cuid())
+  curriculumId    String
+  name            String
+  description     String?
+  sequenceOrder   Int
+  
+  curriculum      Curriculum       @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  topics          Topic[]
+  
+  @@index([curriculumId, sequenceOrder])
+}
+
+model Topic {
+  id              String           @id @default(cuid())
+  unitId          String
+  name            String
+  description     String?
+  sequenceOrder   Int
+  estimatedHours  Float?
+  
+  unit            CurriculumUnit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  concepts        Concept[]
+  learningObjectives LearningObjective[]
+  
+  @@index([unitId, sequenceOrder])
+}
+
+model Concept {
+  id              String          @id @default(cuid())
+  topicId         String
+  name            String
+  description     String
+  difficulty      Int             @default(1) // 1-5
+  
+  // For RAG - vectorized content
+  contentChunks   ContentChunk[]
+  
+  // Prerequisites
+  prerequisites   Concept[]       @relation("ConceptPrerequisites")
+  dependents      Concept[]       @relation("ConceptPrerequisites")
+  
+  topic           Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  knowledgeNodes  KnowledgeNode[]
+  questions       Question[]
+  
+  @@index([topicId])
+}
+
+model LearningObjective {
+  id              String   @id @default(cuid())
+  topicId         String
+  code            String   // Official syllabus code e.g., "1.2.3"
+  description     String
+  assessmentCriteria String?
+  bloomsLevel     Int      @default(1) // 1-6 (Remember to Create)
+  
+  topic           Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  @@unique([topicId, code])
+}
+
+// Vectorized content for RAG
+model ContentChunk {
+  id              String   @id @default(cuid())
+  conceptId       String
+  content         String   // The actual text
+  contentType     String   // explanation, example, analogy, common_mistake
+  embedding       Float[]  // Vector embedding for similarity search
+  source          String?  // Textbook, syllabus document, etc.
+  sourceUrl       String?
+  
+  concept         Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([conceptId])
+}
+
+// ============================================
+// EXAM PAPERS & MARKING SCHEMES
+// ============================================
+
+model ExamPaper {
+  id              String     @id @default(cuid())
+  curriculumId    String
+  year            Int
+  session         String     // May, November, etc.
+  paperNumber     String     // Paper 1, Paper 2
+  title           String
+  totalMarks      Int
+  duration        Int        // minutes
+  
+  curriculum      Curriculum @relation(fields: [curriculumId], references: [id])
+  questions       Question[]
+  
+  @@unique([curriculumId, year, session, paperNumber])
+}
+
+model Question {
+  id                String         @id @default(cuid())
+  examPaperId       String?
+  conceptId         String
+  questionText      String
+  questionType      String         // multiple_choice, short_answer, essay, calculation, mechanism
+  difficulty        Int            @default(1) // 1-5
+  marks             Int            @default(1)
+  markingScheme     Json           // Detailed marking criteria
+  modelAnswer       String?
+  commonMistakes    String[]
+  
+  // For generated questions
+  isGenerated       Boolean        @default(false)
+  generationParams  Json?
+  
+  examPaper         ExamPaper?     @relation(fields: [examPaperId], references: [id])
+  concept           Concept        @relation(fields: [conceptId], references: [id])
+  responses         QuestionResponse[]
+  
+  createdAt         DateTime       @default(now())
+  
+  @@index([conceptId, difficulty])
+}
+
+// ============================================
+// LEARNING SESSIONS & INTERACTIONS
+// ============================================
+
+enum SessionMode {
+  SCHOOL_STUFF       // Curriculum-based homework help
+  LEARN_SOMETHING_NEW // Skill acquisition
+  EXAM_PREP          // Crisis mode exam preparation
+  CAREER_CHANGE      // Professional reskilling
+}
+
+model LearningSession {
+  id              String           @id @default(cuid())
+  studentId       String
+  mode            SessionMode      @default(SCHOOL_STUFF)
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+  durationMinutes Int?
+  
+  // Context
+  curriculumId    String?
+  topicId         String?
+  
+  // AI Model usage tracking
+  modelUsage      Json             // {haiku: 10, sonnet: 5, opus: 1}
+  
+  student         StudentProfile   @relation(fields: [studentId], references: [id])
+  interactions    Interaction[]
+  assessments     Assessment[]
+  
+  @@index([studentId, startedAt])
+}
+
+model Interaction {
+  id              String          @id @default(cuid())
+  sessionId       String
+  role            String          // user, assistant, system
+  content         String
+  contentType     String          @default("text") // text, code, latex, image
+  
+  // AI routing info
+  modelUsed       String?         // haiku, sonnet, opus, wolfram, rdkit
+  tokensUsed      Int?
+  latencyMs       Int?
+  
+  // Retrieved context (for RAG transparency)
+  retrievedChunks String[]        // IDs of content chunks used
+  citations       Json?           // Formatted citations
+  
+  // Verification results
+  verified        Boolean         @default(false)
+  verificationMethod String?      // wolfram, rdkit, judge0
+  
+  session         LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([sessionId, createdAt])
+}
+
+// ============================================
+// ASSESSMENTS & PROGRESS
+// ============================================
+
+model Assessment {
+  id              String           @id @default(cuid())
+  studentId       String
+  sessionId       String?
+  assessmentType  String           // diagnostic, formative, summative, mock_exam
+  title           String?
+  
+  // Results
+  score           Float?
+  maxScore        Float?
+  completedAt     DateTime?
+  timeSpentMinutes Int?
+  
+  student         StudentProfile   @relation(fields: [studentId], references: [id])
+  session         LearningSession? @relation(fields: [sessionId], references: [id])
+  responses       QuestionResponse[]
+  
+  createdAt       DateTime         @default(now())
+  
+  @@index([studentId, createdAt])
+}
+
+model QuestionResponse {
+  id              String     @id @default(cuid())
+  assessmentId    String
+  questionId      String
+  studentAnswer   String
+  
+  // AI Grading
+  score           Float?
+  maxScore        Float
+  feedback        String?
+  feedbackType    String?    // correct, partial, incorrect, misconception
+  misconceptionId String?    // Link to identified misconception pattern
+  
+  // Timestamps
+  startedAt       DateTime   @default(now())
+  submittedAt     DateTime?
+  
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  question        Question   @relation(fields: [questionId], references: [id])
+  
+  @@index([assessmentId])
+}
+
+// ============================================
+// PARENT & TEACHER FEATURES
+// ============================================
+
+model ParentProfile {
+  id              String              @id @default(cuid())
+  userId          String              @unique
+  
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentLinks    ParentStudentLink[]
+  notifications   ParentNotification[]
+}
+
+model ParentStudentLink {
+  id              String         @id @default(cuid())
+  parentId        String
+  studentId       String
+  relationship    String         @default("parent") // parent, guardian, tutor
+  canViewProgress Boolean        @default(true)
+  canSetGoals     Boolean        @default(true)
+  
+  parent          ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([parentId, studentId])
+}
+
+model ParentNotification {
+  id              String        @id @default(cuid())
+  parentId        String
+  type            String        // struggle_alert, milestone, daily_summary
+  title           String
+  message         String
+  studentName     String?
+  read            Boolean       @default(false)
+  
+  parent          ParentProfile @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime      @default(now())
+  
+  @@index([parentId, read])
+}
+
+model TeacherProfile {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  institutionId   String?
+  department      String?
+  
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution     Institution? @relation(fields: [institutionId], references: [id])
+  classes         Class[]
+}
+
+// ============================================
+// INSTITUTIONAL TIER
+// ============================================
+
+model Institution {
+  id              String           @id @default(cuid())
+  name            String
+  type            String           // school, district, university
+  country         String
+  state           String?
+  
+  // Settings
+  ssoProvider     String?          // clever, google, microsoft
+  ssoDomain       String?
+  
+  teachers        TeacherProfile[]
+  classes         Class[]
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Class {
+  id              String            @id @default(cuid())
+  teacherId       String
+  institutionId   String?
+  name            String            // "7th Grade Math Period 3"
+  subject         String
+  curriculumId    String?
+  academicYear    String
+  
+  // Pacing
+  pacingGuide     Json?             // Week-by-week topic schedule
+  
+  teacher         TeacherProfile    @relation(fields: [teacherId], references: [id])
+  institution     Institution?      @relation(fields: [institutionId], references: [id])
+  enrollments     ClassEnrollment[]
+  assignments     Assignment[]
+  
+  @@index([teacherId])
+}
+
+model ClassEnrollment {
+  id              String         @id @default(cuid())
+  classId         String
+  studentId       String
+  enrolledAt      DateTime       @default(now())
+  
+  class           Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([classId, studentId])
+}
+
+model Assignment {
+  id              String           @id @default(cuid())
+  classId         String
+  title           String
+  description     String?
+  dueDate         DateTime?
+  
+  // AI-generated or teacher-created
+  topicIds        String[]
+  questionCount   Int?
+  difficultyRange Int[]            @default([1, 3])
+  
+  class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime         @default(now())
+}
+
+// ============================================
+// CURRICULUM ENROLLMENT
+// ============================================
+
+model CurriculumEnrollment {
+  id              String         @id @default(cuid())
+  studentId       String
+  curriculumId    String
+  enrolledAt      DateTime       @default(now())
+  targetExamDate  DateTime?
+  
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  curriculum      Curriculum     @relation(fields: [curriculumId], references: [id])
+  
+  @@unique([studentId, curriculumId])
+}
+
+// ============================================
+// CAREER CHANGE TRACK
+// ============================================
+
+model CareerTrack {
+  id              String   @id @default(cuid())
+  name            String   // "Data Analytics", "Web Development"
+  description     String
+  targetRole      String   // "Data Analyst", "Frontend Developer"
+  estimatedWeeks  Int
+  
+  skills          Skill[]
+  projects        ProjectTemplate[]
+}
+
+model Skill {
+  id              String      @id @default(cuid())
+  trackId         String
+  name            String
+  description     String
+  sequenceOrder   Int
+  
+  track           CareerTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  
+  @@index([trackId, sequenceOrder])
+}
+
+model ProjectTemplate {
+  id              String      @id @default(cuid())
+  trackId         String
+  name            String
+  description     String
+  difficulty      Int
+  skills          String[]    // Skills this project teaches
+  starterCode     String?
+  
+  track           CareerTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// ANALYTICS & METRICS
+// ============================================
+
+model DailyMetrics {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  
+  // Global metrics
+  totalSessions   Int      @default(0)
+  totalInteractions Int    @default(0)
+  activeStudents  Int      @default(0)
+  
+  // Model usage
+  haikuTokens     Int      @default(0)
+  sonnetTokens    Int      @default(0)
+  opusTokens      Int      @default(0)
+  
+  // Cost tracking
+  totalCostUsd    Float    @default(0)
+  
+  @@unique([date])
+}
