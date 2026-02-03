@@ -1,15 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
+import { useAuth } from '@/components/providers';
 
 const navigation = [
   {
@@ -44,45 +38,10 @@ const navigation = [
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading, logout, switchRole } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (!res.ok) {
-          throw new Error('Unauthorized');
-        }
-        
-        const data = await res.json();
-        setUser(data.user);
-      } catch {
-        localStorage.removeItem('token');
-        router.push('/login');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
-  };
-
+  // Show loading spinner while auth is initializing
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -91,11 +50,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     );
   }
 
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
+
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Mobile sidebar backdrop */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -112,6 +76,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               <span className="text-white font-bold text-sm">E</span>
             </div>
             <span className="text-lg font-bold text-white">EduForge</span>
+            <span className="ml-auto text-xs bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded">DEV</span>
           </div>
 
           {/* Navigation */}
@@ -124,8 +89,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   href={item.href}
                   onClick={() => setIsSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
-                    isActive 
-                      ? 'bg-indigo-500/20 text-indigo-400' 
+                    isActive
+                      ? 'bg-indigo-500/20 text-indigo-400'
                       : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
@@ -136,17 +101,46 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             })}
           </nav>
 
+          {/* Role Switcher (Dev Mode) */}
+          <div className="px-4 py-2 border-t border-slate-800">
+            <p className="text-xs text-slate-500 mb-2">Switch Role:</p>
+            <div className="flex flex-wrap gap-1">
+              {['STUDENT', 'PARENT', 'TEACHER', 'ADMIN'].map((role) => (
+                <button
+                  key={role}
+                  onClick={() => {
+                    switchRole(role as 'STUDENT' | 'PARENT' | 'TEACHER' | 'ADMIN');
+                    const paths: Record<string, string> = {
+                      STUDENT: '/student',
+                      PARENT: '/parent',
+                      TEACHER: '/teacher',
+                      ADMIN: '/admin',
+                    };
+                    router.push(paths[role]);
+                  }}
+                  className={`text-xs px-2 py-1 rounded ${
+                    user?.role === role
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* User section */}
           <div className="p-4 border-t border-slate-800">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-medium">
-                  {user?.name?.charAt(0).toUpperCase()}
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-white font-medium truncate">{user?.name}</div>
-                <div className="text-slate-500 text-sm truncate">{user?.email}</div>
+                <div className="text-white font-medium truncate">{user?.name || 'Dev User'}</div>
+                <div className="text-slate-500 text-sm truncate">{user?.email || 'dev@eduforge.ai'}</div>
               </div>
             </div>
             <button

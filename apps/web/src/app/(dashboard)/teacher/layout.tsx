@@ -1,15 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
+import { useAuth } from '@/components/providers';
 
 export default function TeacherDashboardLayout({
   children,
@@ -18,49 +12,12 @@ export default function TeacherDashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading, logout, switchRole } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          localStorage.removeItem('token');
-          router.push('/login');
-          return;
-        }
-
-        const data = await res.json();
-        if (data.user.role !== 'TEACHER') {
-          router.push(`/${data.user.role.toLowerCase()}`);
-          return;
-        }
-        setUser(data.user);
-      } catch (error) {
-        console.error('Auth error:', error);
-        router.push('/login');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, [router]);
-
   const handleSignOut = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
+    logout();
+    router.push('/');
   };
 
   const navItems = [
@@ -121,7 +78,7 @@ export default function TeacherDashboardLayout({
     },
   ];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
@@ -172,7 +129,7 @@ export default function TeacherDashboardLayout({
                 EduForge
               </span>
             </Link>
-            <p className="text-xs text-slate-500 mt-2">Teacher Dashboard</p>
+            <p className="text-xs text-slate-500 mt-2">Teacher Dashboard <span className="text-emerald-400">(DEV)</span></p>
           </div>
 
           {/* Navigation */}
@@ -196,6 +153,35 @@ export default function TeacherDashboardLayout({
               );
             })}
           </nav>
+
+          {/* Role Switcher */}
+          <div className="px-4 py-2 border-t border-slate-800">
+            <p className="text-xs text-slate-500 mb-2">Switch Role:</p>
+            <div className="flex flex-wrap gap-1">
+              {['STUDENT', 'PARENT', 'TEACHER', 'ADMIN'].map((role) => (
+                <button
+                  key={role}
+                  onClick={() => {
+                    switchRole(role as 'STUDENT' | 'PARENT' | 'TEACHER' | 'ADMIN');
+                    const paths: Record<string, string> = {
+                      STUDENT: '/student',
+                      PARENT: '/parent',
+                      TEACHER: '/teacher',
+                      ADMIN: '/admin',
+                    };
+                    router.push(paths[role]);
+                  }}
+                  className={`text-xs px-2 py-1 rounded ${
+                    user?.role === role
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* User profile */}
           <div className="p-4 border-t border-slate-800">
