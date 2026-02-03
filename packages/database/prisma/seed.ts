@@ -14,13 +14,13 @@ async function main() {
 
   // Create Exam Board: Kenya CBC
   const kenyaCBC = await prisma.examBoard.upsert({
-    where: { code: 'KENYA_CBC' },
+    where: { id: 'kenya-cbc' },
     update: {},
     create: {
+      id: 'kenya-cbc',
       name: 'Kenya Competency Based Curriculum',
-      code: 'KENYA_CBC',
       country: 'Kenya',
-      website: 'https://kicd.ac.ke',
+      description: 'Kenya Competency Based Curriculum - https://kicd.ac.ke',
     },
   });
   console.log('✅ Created exam board:', kenyaCBC.name);
@@ -32,12 +32,9 @@ async function main() {
     create: {
       id: 'kenya-cbc-math-g8',
       examBoardId: kenyaCBC.id,
-      name: 'Mathematics',
-      code: 'MATH-G8',
+      name: 'Mathematics Grade 8',
       subject: 'Mathematics',
-      yearGroup: 8,
-      description: 'Grade 8 Mathematics covering algebra, geometry, and statistics',
-      syllabusUrl: 'https://kicd.ac.ke/curriculum-reform/curricula-designs/',
+      yearGroup: 'Grade 8',
     },
   });
   console.log('✅ Created curriculum:', mathCurriculum.name);
@@ -47,29 +44,25 @@ async function main() {
     {
       id: 'math-g8-unit1',
       name: 'Numbers',
-      code: 'UNIT-1',
-      orderIndex: 1,
+      sequenceOrder: 1,
       description: 'Understanding integers, fractions, decimals and percentages',
     },
     {
       id: 'math-g8-unit2',
       name: 'Algebra',
-      code: 'UNIT-2',
-      orderIndex: 2,
+      sequenceOrder: 2,
       description: 'Algebraic expressions, equations and inequalities',
     },
     {
       id: 'math-g8-unit3',
       name: 'Geometry',
-      code: 'UNIT-3',
-      orderIndex: 3,
+      sequenceOrder: 3,
       description: 'Properties of shapes, angles and transformations',
     },
     {
       id: 'math-g8-unit4',
       name: 'Statistics',
-      code: 'UNIT-4',
-      orderIndex: 4,
+      sequenceOrder: 4,
       description: 'Data collection, representation and analysis',
     },
   ];
@@ -91,40 +84,35 @@ async function main() {
     {
       id: 'topic-linear-expressions',
       name: 'Linear Expressions',
-      code: 'ALG-1',
-      orderIndex: 1,
+      sequenceOrder: 1,
       description: 'Simplifying and evaluating linear expressions',
       estimatedHours: 4,
     },
     {
       id: 'topic-linear-equations',
       name: 'Linear Equations',
-      code: 'ALG-2',
-      orderIndex: 2,
+      sequenceOrder: 2,
       description: 'Solving linear equations in one variable',
       estimatedHours: 5,
     },
     {
       id: 'topic-linear-inequalities',
       name: 'Linear Inequalities',
-      code: 'ALG-3',
-      orderIndex: 3,
+      sequenceOrder: 3,
       description: 'Solving and graphing linear inequalities',
       estimatedHours: 4,
     },
     {
       id: 'topic-quadratic-expressions',
       name: 'Quadratic Expressions',
-      code: 'ALG-4',
-      orderIndex: 4,
+      sequenceOrder: 4,
       description: 'Expanding and factorizing quadratic expressions',
       estimatedHours: 6,
     },
     {
       id: 'topic-quadratic-equations',
       name: 'Quadratic Equations',
-      code: 'ALG-5',
-      orderIndex: 5,
+      sequenceOrder: 5,
       description: 'Solving quadratic equations by factorization and formula',
       estimatedHours: 6,
     },
@@ -147,104 +135,93 @@ async function main() {
     {
       id: 'concept-standard-form',
       name: 'Standard Form of Quadratic Equations',
-      code: 'QE-1',
-      orderIndex: 1,
       description: 'Understanding ax² + bx + c = 0',
-      keyPoints: ['Identifying coefficients a, b, c', 'Recognizing standard form'],
-      commonMisconceptions: ['Confusing a, b, c with x values', 'Forgetting to set equation equal to zero'],
+      difficulty: 1,
+      prerequisiteIds: [] as string[],
     },
     {
       id: 'concept-factorization',
       name: 'Solving by Factorization',
-      code: 'QE-2',
-      orderIndex: 2,
       description: 'Finding roots by factoring',
-      keyPoints: ['Finding factors that multiply to ac and add to b', 'Splitting the middle term', 'Setting each factor to zero'],
-      commonMisconceptions: ['Only finding one root', 'Sign errors in factors'],
-      prerequisites: ['concept-standard-form'],
+      difficulty: 2,
+      prerequisiteIds: ['concept-standard-form'],
     },
     {
       id: 'concept-quadratic-formula',
       name: 'The Quadratic Formula',
-      code: 'QE-3',
-      orderIndex: 3,
       description: 'Using x = (-b ± √(b²-4ac)) / 2a',
-      keyPoints: ['Memorizing the formula', 'Substituting values correctly', 'Handling the ± correctly'],
-      commonMisconceptions: ['Sign errors with -b', 'Forgetting to divide by 2a', 'Not simplifying the square root'],
-      prerequisites: ['concept-standard-form'],
+      difficulty: 3,
+      prerequisiteIds: ['concept-standard-form'],
     },
     {
       id: 'concept-discriminant',
       name: 'The Discriminant',
-      code: 'QE-4',
-      orderIndex: 4,
       description: 'Understanding b²-4ac and nature of roots',
-      keyPoints: ['D > 0: two real roots', 'D = 0: one repeated root', 'D < 0: no real roots'],
-      commonMisconceptions: ['Confusing discriminant with full formula', 'Misinterpreting zero discriminant'],
-      prerequisites: ['concept-quadratic-formula'],
+      difficulty: 3,
+      prerequisiteIds: ['concept-quadratic-formula'],
     },
     {
       id: 'concept-completing-square',
       name: 'Completing the Square',
-      code: 'QE-5',
-      orderIndex: 5,
       description: 'Transforming to vertex form',
-      keyPoints: ['Halving the coefficient of x', 'Adding and subtracting the square', 'Taking square root of both sides'],
-      commonMisconceptions: ['Forgetting to balance the equation', 'Sign errors when moving terms'],
-      prerequisites: ['concept-standard-form'],
+      difficulty: 4,
+      prerequisiteIds: ['concept-standard-form'],
     },
   ];
 
   for (const concept of quadraticConcepts) {
-    const { prerequisites, ...conceptData } = concept;
+    const { prerequisiteIds, ...conceptData } = concept;
     await prisma.concept.upsert({
       where: { id: concept.id },
       update: {},
       create: {
         ...conceptData,
         topicId: 'topic-quadratic-equations',
-        prerequisites: prerequisites || [],
+        prerequisites: prerequisiteIds.length > 0
+          ? { connect: prerequisiteIds.map(id => ({ id })) }
+          : undefined,
       },
     });
   }
   console.log('✅ Created', quadraticConcepts.length, 'concepts for quadratic equations');
 
   // Create Learning Objectives
+  // Bloom's levels: 1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create
   const learningObjectives = [
     {
       id: 'lo-qe-1',
-      conceptId: 'concept-standard-form',
+      topicId: 'topic-quadratic-equations',
       code: 'LO.QE.1',
       description: 'Identify and write quadratic equations in standard form',
-      bloomsLevel: 'UNDERSTAND',
+      bloomsLevel: 2, // Understand
     },
     {
       id: 'lo-qe-2',
-      conceptId: 'concept-factorization',
+      topicId: 'topic-quadratic-equations',
       code: 'LO.QE.2',
       description: 'Solve quadratic equations by factorization',
-      bloomsLevel: 'APPLY',
+      bloomsLevel: 3, // Apply
     },
     {
       id: 'lo-qe-3',
-      conceptId: 'concept-quadratic-formula',
+      topicId: 'topic-quadratic-equations',
       code: 'LO.QE.3',
       description: 'Apply the quadratic formula to find roots',
-      bloomsLevel: 'APPLY',
+      bloomsLevel: 3, // Apply
     },
     {
       id: 'lo-qe-4',
-      conceptId: 'concept-discriminant',
+      topicId: 'topic-quadratic-equations',
       code: 'LO.QE.4',
       description: 'Use the discriminant to determine the nature of roots',
-      bloomsLevel: 'ANALYZE',
+      bloomsLevel: 4, // Analyze
     },
     {
       id: 'lo-qe-5',
-      conceptId: 'concept-completing-square',
+      topicId: 'topic-quadratic-equations',
       code: 'LO.QE.5',
       description: 'Solve quadratic equations by completing the square',
-      bloomsLevel: 'APPLY',
+      bloomsLevel: 3, // Apply
     },
   ];
 
@@ -265,20 +242,19 @@ async function main() {
     {
       id: 'chunk-qe-intro',
       conceptId: 'concept-standard-form',
-      type: 'EXPLANATION',
+      contentType: 'explanation',
       content: `A quadratic equation is an equation of the form ax² + bx + c = 0, where a, b, and c are constants and a ≠ 0. The term 'quadratic' comes from 'quad' meaning square, as the highest power of the variable is 2.
 
 Examples of quadratic equations:
 - x² + 5x + 6 = 0 (here a=1, b=5, c=6)
 - 2x² - 3x - 5 = 0 (here a=2, b=-3, c=-5)
 - x² - 4 = 0 (here a=1, b=0, c=-4)`,
-      language: 'en',
-      gradeLevel: 8,
+      source: 'seed',
     },
     {
       id: 'chunk-qe-factorization',
       conceptId: 'concept-factorization',
-      type: 'EXPLANATION',
+      contentType: 'explanation',
       content: `To solve a quadratic equation by factorization:
 
 1. Write the equation in standard form: ax² + bx + c = 0
@@ -294,13 +270,12 @@ Example: Solve x² + 5x + 6 = 0
 - x(x + 2) + 3(x + 2) = 0
 - (x + 2)(x + 3) = 0
 - x = -2 or x = -3`,
-      language: 'en',
-      gradeLevel: 8,
+      source: 'seed',
     },
     {
       id: 'chunk-qe-formula',
       conceptId: 'concept-quadratic-formula',
-      type: 'EXPLANATION',
+      contentType: 'explanation',
       content: `The Quadratic Formula allows us to solve any quadratic equation:
 
 x = (-b ± √(b² - 4ac)) / 2a
@@ -320,8 +295,7 @@ x = (-5 ± √(25 + 24)) / 4
 x = (-5 ± √49) / 4
 x = (-5 ± 7) / 4
 x = 0.5 or x = -3`,
-      language: 'en',
-      gradeLevel: 8,
+      source: 'seed',
     },
   ];
 
@@ -329,10 +303,7 @@ x = 0.5 or x = -3`,
     await prisma.contentChunk.upsert({
       where: { id: chunk.id },
       update: {},
-      create: {
-        ...chunk,
-        embedding: [], // Would be populated by RAG engine
-      },
+      create: chunk,
     });
   }
   console.log('✅ Created', contentChunks.length, 'content chunks');
@@ -347,7 +318,7 @@ x = 0.5 or x = -3`,
       title: 'Grade 8 Mathematics Mock Exam 2024',
       year: 2024,
       session: 'Term 1',
-      paperNumber: 1,
+      paperNumber: 'Paper 1',
       duration: 120,
       totalMarks: 100,
     },
@@ -359,30 +330,38 @@ x = 0.5 or x = -3`,
     {
       id: 'q-factorization-1',
       examPaperId: examPaper.id,
-      topicId: 'topic-quadratic-equations',
-      questionNumber: 1,
-      content: 'Solve the equation x² - 7x + 12 = 0 by factorization.',
+      conceptId: 'concept-factorization',
+      questionText: 'Solve the equation x² - 7x + 12 = 0 by factorization.',
+      questionType: 'calculation',
       marks: 4,
       difficulty: 3,
-      markingScheme: `1 mark: Identifying factors (x-3)(x-4) = 0
-1 mark: Setting x-3 = 0
-1 mark: Setting x-4 = 0  
-1 mark: Final answers x = 3, x = 4`,
+      markingScheme: {
+        criteria: [
+          '1 mark: Identifying factors (x-3)(x-4) = 0',
+          '1 mark: Setting x-3 = 0',
+          '1 mark: Setting x-4 = 0',
+          '1 mark: Final answers x = 3, x = 4',
+        ],
+      },
       commonMistakes: ['Incorrect signs in factors', 'Only finding one solution', 'Arithmetic errors'],
     },
     {
       id: 'q-formula-1',
       examPaperId: examPaper.id,
-      topicId: 'topic-quadratic-equations',
-      questionNumber: 2,
-      content: 'Use the quadratic formula to solve 2x² + 3x - 5 = 0. Give your answers correct to 2 decimal places.',
+      conceptId: 'concept-quadratic-formula',
+      questionText: 'Use the quadratic formula to solve 2x² + 3x - 5 = 0. Give your answers correct to 2 decimal places.',
+      questionType: 'calculation',
       marks: 5,
       difficulty: 4,
-      markingScheme: `1 mark: Correct substitution into formula
-1 mark: Correct discriminant = 49
-1 mark: Correct calculation of √49 = 7
-1 mark: First solution x = 1
-1 mark: Second solution x = -2.5`,
+      markingScheme: {
+        criteria: [
+          '1 mark: Correct substitution into formula',
+          '1 mark: Correct discriminant = 49',
+          '1 mark: Correct calculation of √49 = 7',
+          '1 mark: First solution x = 1',
+          '1 mark: Second solution x = -2.5',
+        ],
+      },
       commonMistakes: ['Sign error with -b', 'Forgetting ± gives two solutions', 'Rounding errors'],
     },
   ];
@@ -405,7 +384,6 @@ x = 0.5 or x = -3`,
       name: 'Demo Student',
       passwordHash: '$2b$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu/1u', // password: demo123
       role: 'STUDENT',
-      emailVerified: true,
     },
   });
   console.log('✅ Created demo user:', demoUser.email);
@@ -425,7 +403,7 @@ x = 0.5 or x = -3`,
   console.log('✅ Created student profile');
 
   // Enroll student in curriculum
-  await prisma.enrollment.upsert({
+  await prisma.curriculumEnrollment.upsert({
     where: {
       studentId_curriculumId: {
         studentId: studentProfile.id,
@@ -436,7 +414,6 @@ x = 0.5 or x = -3`,
     create: {
       studentId: studentProfile.id,
       curriculumId: mathCurriculum.id,
-      isActive: true,
     },
   });
   console.log('✅ Enrolled demo student in', mathCurriculum.name);
