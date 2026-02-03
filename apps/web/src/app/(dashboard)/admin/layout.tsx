@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/components/providers';
 import {
   LayoutDashboard,
   Users,
@@ -36,7 +37,22 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isLoading, logout, switchRole } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleSignOut = () => {
+    logout();
+    router.push('/');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -95,14 +111,36 @@ export default function AdminLayout({
           <div className="p-4 border-t border-gray-800">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center text-white font-bold">
-                A
+                {user?.name?.charAt(0) || 'A'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">Admin User</p>
-                <p className="text-xs text-gray-500 truncate">admin@eduforge.ai</p>
+                <p className="text-sm font-medium text-white truncate">{user?.name || 'Admin User'}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email || 'admin@eduforge.ai'}</p>
               </div>
             </div>
-            <button className="flex items-center gap-2 w-full px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
+            {/* Dev Role Switcher */}
+            <div className="mb-3 p-2 bg-gray-800 rounded-lg">
+              <p className="text-xs text-gray-400 mb-2">Switch Role:</p>
+              <div className="grid grid-cols-2 gap-1">
+                {(['STUDENT', 'PARENT', 'TEACHER', 'ADMIN'] as const).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => switchRole(role)}
+                    className={`text-xs px-2 py-1 rounded ${
+                      user?.role === role
+                        ? 'bg-red-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 w-full px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            >
               <LogOut className="w-4 h-4" />
               <span className="text-sm">Sign Out</span>
             </button>
