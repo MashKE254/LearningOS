@@ -21,6 +21,7 @@ interface AuthContextType {
   signup: (data: SignupData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  switchRole: (role: User['role']) => void;
 }
 
 interface SignupData {
@@ -35,94 +36,104 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 // API base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-const USE_DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-// Check if backend is available
-async function checkBackendAvailable(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
-    const res = await fetch(`${API_URL}/health`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+// DEVELOPMENT MODE - Auto login enabled
+const IS_DEV = true; // Set to false for production
+
+// Dev users for each role - switch easily during development
+const DEV_USERS: Record<string, User> = {
+  STUDENT: {
+    id: 'dev-student-1',
+    email: 'student@eduforge.dev',
+    name: 'Alex Student',
+    role: 'STUDENT',
+  },
+  PARENT: {
+    id: 'dev-parent-1',
+    email: 'parent@eduforge.dev',
+    name: 'Sarah Parent',
+    role: 'PARENT',
+  },
+  TEACHER: {
+    id: 'dev-teacher-1',
+    email: 'teacher@eduforge.dev',
+    name: 'Mr. Johnson',
+    role: 'TEACHER',
+  },
+  ADMIN: {
+    id: 'dev-admin-1',
+    email: 'admin@eduforge.dev',
+    name: 'Admin User',
+    role: 'ADMIN',
+  },
+};
 
 // Auth Provider
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDemoMode, setIsDemoMode] = useState(USE_DEMO_MODE);
+  const [isDemoMode, setIsDemoMode] = useState(IS_DEV);
 
-  // Fetch current user on mount
+  // Auto-login on mount in dev mode
   useEffect(() => {
-    initAuth();
+    if (IS_DEV) {
+      // Check localStorage for last used role, default to STUDENT
+      const savedRole = localStorage.getItem('dev_role') as User['role'] || 'STUDENT';
+      setUser(DEV_USERS[savedRole]);
+      setIsDemoMode(true);
+      setIsLoading(false);
+      console.log(`🚀 DEV MODE: Auto-logged in as ${savedRole}`);
+      console.log('💡 Use switchRole() or visit /dev to change roles');
+    } else {
+      initAuth();
+    }
   }, []);
 
   const initAuth = async () => {
-    // Check if backend is available
-    const backendAvailable = await checkBackendAvailable();
-    
-    if (!backendAvailable) {
-      console.log('🎭 Backend not available, using demo mode');
-      setIsDemoMode(true);
-      
-      // Check for stored demo session
-      const storedUser = localStorage.getItem('demo_user');
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          // Invalid stored data
-        }
-      }
-      setIsLoading(false);
-      return;
-    }
-
-    refreshUser();
-  };
-
-  const refreshUser = async () => {
-    if (isDemoMode) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
       const res = await fetch(`${API_URL}/api/v1/auth/me`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: { 'Authorization': `Bearer ${token}` },
         credentials: 'include',
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
-        setUser(null);
         localStorage.removeItem('auth_token');
       }
     } catch (error) {
-      console.error('Failed to fetch user:', error);
-      setUser(null);
+      console.error('Auth init failed:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const refreshUser = async () => {
+    if (IS_DEV) return;
+    await initAuth();
+  };
+
+  // Switch role easily in dev mode
+  const switchRole = (role: User['role']) => {
+    if (DEV_USERS[role]) {
+      setUser(DEV_USERS[role]);
+      localStorage.setItem('dev_role', role);
+      console.log(`🔄 Switched to ${role}`);
+    }
+  };
+
   const login = async (email: string, password: string) => {
-    if (isDemoMode) {
+    if (IS_DEV || isDemoMode) {
       const result = await mockApi.login(email, password);
       if (result.success) {
         setUser(result.data.user as User);
-        localStorage.setItem('demo_user', JSON.stringify(result.data.user));
-        localStorage.setItem('demo_token', result.data.token);
       }
       return;
     }
@@ -147,12 +158,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (data: SignupData) => {
-    if (isDemoMode) {
+    if (IS_DEV || isDemoMode) {
       const result = await mockApi.signup({ email: data.email, name: data.name, role: data.role });
       if (result.success) {
         setUser(result.data.user as User);
-        localStorage.setItem('demo_user', JSON.stringify(result.data.user));
-        localStorage.setItem('demo_token', result.data.token);
       }
       return;
     }
@@ -177,10 +186,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    if (isDemoMode) {
-      setUser(null);
-      localStorage.removeItem('demo_user');
-      localStorage.removeItem('demo_token');
+    if (IS_DEV) {
+      // In dev mode, just switch back to student
+      setUser(DEV_USERS.STUDENT);
+      localStorage.setItem('dev_role', 'STUDENT');
       return;
     }
 
@@ -193,7 +202,16 @@ function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isDemoMode, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{
+      user,
+      isLoading,
+      isDemoMode,
+      login,
+      signup,
+      logout,
+      refreshUser,
+      switchRole
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -232,4 +250,4 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 }
 
-export { AuthContext };
+export { AuthContext, DEV_USERS };
