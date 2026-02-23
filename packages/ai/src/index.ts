@@ -12,6 +12,8 @@ export * from './model-router';
 export * from './rag-engine';
 export * from './socratic-engine';
 export * from './verification-engine';
+export * from './ollama-client';
+export * from './ai-service';
 
 // Convenience factory for creating a complete AI stack
 import { ModelRouter, createModelRouter } from './model-router';

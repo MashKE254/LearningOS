@@ -282,11 +282,73 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ documents: results });
 }
 
+// Generate AI-enhanced parent summary
+async function generateAIParentSummary(doc: IEPDocument): Promise<ParentSummary | null> {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+
+  const prompt = `You are writing a compassionate, clear letter to a parent about their child's educational progress.
+
+Student: ${doc.studentName}, Grade ${doc.gradeLevel}
+Subjects: ${doc.subjects.join(', ')}
+Special Needs: ${doc.specialNeeds.length > 0 ? doc.specialNeeds.join(', ') : 'None specified'}
+
+Strengths (concepts mastered well):
+${doc.strengthAreas.map(s => `- ${s}`).join('\n')}
+
+Areas for Growth:
+${doc.improvementAreas.map(a => `- ${a}`).join('\n')}
+
+Active Misconceptions Being Addressed:
+${doc.misconceptionHistory.filter(m => m.status === 'active').map(m => `- ${m.name}: ${m.details}`).join('\n')}
+
+Write a warm, encouraging parent summary with these sections. Use simple language that any parent can understand - avoid educational jargon. Be specific and actionable.
+
+Respond in JSON format:
+{
+  "greeting": "Dear Parent/Guardian of [name]",
+  "strengthsHighlight": "Positive paragraph about what the student does well...",
+  "areasForGrowth": "Gentle, constructive paragraph about challenges...",
+  "whatWeAreDoing": "Specific steps the school/AI tutor is taking...",
+  "howYouCanHelp": "2-3 concrete things parents can do at home...",
+  "nextSteps": "Timeline and next communication..."
+}`;
+
+  try {
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: [
+          { role: 'system', content: 'You are an empathetic education specialist. Write clear, warm communications to parents. Always respond with valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        stream: false,
+        options: { temperature: 0.7, num_predict: 1500 },
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const content = data.message?.content || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    }
+  } catch (error) {
+    console.log('AI parent summary generation not available:', error);
+  }
+
+  return null;
+}
+
 // POST - Generate new document
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { studentId, studentName, teacherId, gradeLevel, subjects, specialNeeds, type: docType } = body;
+    const { studentId, studentName, teacherId, gradeLevel, subjects, specialNeeds, type: docType, useAI = true } = body;
 
     if (!studentId || !studentName || !teacherId) {
       return NextResponse.json(
@@ -305,9 +367,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (docType) doc.type = docType;
+
+    // Try AI-enhanced parent summary generation
+    let aiEnhanced = false;
+    if (useAI) {
+      const aiSummary = await generateAIParentSummary(doc);
+      if (aiSummary) {
+        doc.parentSummary = aiSummary;
+        aiEnhanced = true;
+      }
+    }
+
     documents.set(doc.id, doc);
 
-    return NextResponse.json({ success: true, document: doc });
+    return NextResponse.json({ success: true, document: doc, aiEnhanced });
   } catch {
     return NextResponse.json({ error: 'Failed to generate document' }, { status: 500 });
   }

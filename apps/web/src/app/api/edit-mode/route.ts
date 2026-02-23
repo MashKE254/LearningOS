@@ -296,21 +296,114 @@ export async function POST(request: NextRequest) {
       const material = uploadedMaterials.get(materialId);
       if (!material) return NextResponse.json({ error: 'Material not found' }, { status: 404 });
 
+      // Call Ollama to generate course content
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+      const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+
+      const generationPrompt = `You are an expert curriculum designer. Based on the following educational material, create a structured course.
+
+Material: ${material.fileName}
+Subject: ${subject || 'General'}
+Grade Level: ${gradeLevel || 8}
+${examBoard ? `Exam Board: ${examBoard}` : ''}
+
+Content:
+${material.extractedContent}
+
+Generate a course with the following JSON structure (respond ONLY with valid JSON):
+{
+  "title": "Course title",
+  "description": "2-3 sentence description",
+  "learningObjectives": ["objective 1", "objective 2", "objective 3"],
+  "modules": [
+    {
+      "title": "Module title",
+      "type": "lesson",
+      "content": "Full lesson content with markdown formatting",
+      "estimatedDuration": 15,
+      "bloomsLevel": "understand"
+    },
+    {
+      "title": "Practice",
+      "type": "practice",
+      "content": "Practice introduction",
+      "estimatedDuration": 20,
+      "bloomsLevel": "apply",
+      "questions": [
+        {
+          "question": "Question text",
+          "type": "multiple_choice",
+          "options": ["A", "B", "C", "D"],
+          "correctAnswer": "A",
+          "explanation": "Why A is correct",
+          "difficulty": "medium",
+          "marks": 2,
+          "hints": ["hint 1", "hint 2"]
+        }
+      ]
+    }
+  ]
+}
+
+Create 3-5 modules including lessons, practice, and assessment. Include 2-4 questions per practice/assessment module.`;
+
+      let generatedContent;
+      try {
+        const response = await fetch(`${ollamaUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: ollamaModel,
+            messages: [
+              { role: 'system', content: 'You are a curriculum designer. Always respond with valid JSON only, no other text.' },
+              { role: 'user', content: generationPrompt },
+            ],
+            stream: false,
+            options: { temperature: 0.7, num_predict: 4096 },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.message?.content || '';
+          // Extract JSON from response
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            generatedContent = JSON.parse(jsonMatch[0]);
+          }
+        }
+      } catch (aiError) {
+        console.log('AI generation not available, using template:', aiError);
+      }
+
+      // Fall back to template if AI generation failed
       const courseId = crypto.randomUUID();
       const course: GeneratedCourse = {
         id: courseId,
         materialId,
-        title: title || `Course from ${material.fileName}`,
-        description: `AI-generated course from uploaded material: ${material.fileName}`,
+        title: generatedContent?.title || title || `Course from ${material.fileName}`,
+        description: generatedContent?.description || `AI-generated course from uploaded material: ${material.fileName}`,
         subject: subject || 'General',
         gradeLevel: gradeLevel || 8,
         examBoard,
-        learningObjectives: [
+        learningObjectives: generatedContent?.learningObjectives || [
           'Understand the key concepts from the uploaded material',
           'Apply knowledge through practice problems',
           'Demonstrate mastery through assessment',
         ],
-        modules: [
+        modules: generatedContent?.modules?.map((m: CourseModule, i: number) => ({
+          id: crypto.randomUUID(),
+          order: i + 1,
+          title: m.title,
+          type: m.type,
+          content: m.content,
+          estimatedDuration: m.estimatedDuration || 15,
+          bloomsLevel: m.bloomsLevel || 'understand',
+          questions: m.questions?.map((q: GeneratedQuestion) => ({
+            id: crypto.randomUUID(),
+            ...q,
+          })),
+        })) || [
           {
             id: crypto.randomUUID(),
             order: 1,
@@ -358,7 +451,7 @@ export async function POST(request: NextRequest) {
       };
 
       generatedCourses.set(courseId, course);
-      return NextResponse.json({ success: true, course });
+      return NextResponse.json({ success: true, course, aiGenerated: !!generatedContent });
     }
 
     if (body.action === 'approve') {
