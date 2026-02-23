@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/providers';
-import { mockApi } from '@/lib/mock-api';
 
 interface Message {
   id: string;
@@ -11,15 +10,23 @@ interface Message {
   timestamp: Date;
   citations?: Array<{ source: string; content: string } | string>;
   responseType?: string;
+  model?: string;
 }
 
-type SessionMode = 'SCHOOL_STUFF' | 'LEARN_SOMETHING_NEW' | 'EXAM_PREP';
+type SessionMode = 'LEARN' | 'PRACTICE' | 'EXAM';
+
+// Map UI modes to API modes
+const modeMapping: Record<string, SessionMode> = {
+  'SCHOOL_STUFF': 'LEARN',
+  'LEARN_SOMETHING_NEW': 'LEARN',
+  'EXAM_PREP': 'EXAM',
+};
 
 const modes: { value: SessionMode; label: string; description: string; icon: JSX.Element }[] = [
   {
-    value: 'SCHOOL_STUFF',
-    label: 'School Stuff',
-    description: 'Homework help & class topics',
+    value: 'LEARN',
+    label: 'Learn Mode',
+    description: 'Guided discovery & Socratic learning',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -27,9 +34,9 @@ const modes: { value: SessionMode; label: string; description: string; icon: JSX
     ),
   },
   {
-    value: 'LEARN_SOMETHING_NEW',
-    label: 'Learn Something New',
-    description: 'Explore new topics & skills',
+    value: 'PRACTICE',
+    label: 'Practice Mode',
+    description: 'Problems with hints & feedback',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -37,9 +44,9 @@ const modes: { value: SessionMode; label: string; description: string; icon: JSX
     ),
   },
   {
-    value: 'EXAM_PREP',
+    value: 'EXAM',
     label: 'Exam Prep',
-    description: 'Past papers & intensive review',
+    description: 'Intensive exam preparation',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -56,19 +63,37 @@ const quickPrompts = [
 ];
 
 export default function StudentChatPage() {
-  const { isDemoMode } = useAuth();
+  useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [mode, setMode] = useState<SessionMode>('SCHOOL_STUFF');
+  const [mode, setMode] = useState<SessionMode>('LEARN');
   const [showModeSelector, setShowModeSelector] = useState(true);
+  const [aiStatus, setAiStatus] = useState<{ connected: boolean; model?: string }>({ connected: false });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Check AI status on mount
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/chat?action=status');
+        const data = await res.json();
+        setAiStatus({
+          connected: data.status === 'connected',
+          model: data.currentModel,
+        });
+      } catch {
+        setAiStatus({ connected: false });
+      }
+    }
+    checkStatus();
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -97,53 +122,48 @@ export default function StudentChatPage() {
     setShowModeSelector(false);
 
     try {
-      let data;
-      
-      if (isDemoMode) {
-        // Use mock API in demo mode
-        const result = await mockApi.chat(content, sessionId, mode);
-        data = result.data;
-      } else {
-        // Use real API
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch('/api/tutor/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            message: content,
-            sessionId,
-            mode,
-          }),
-        });
+      // Use the new chat API that connects to Ollama
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: content,
+          sessionId,
+          mode,
+          newSession: !sessionId,
+        }),
+      });
 
-        data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to get response');
-        }
+      if (data.error) {
+        throw new Error(data.hint ? `${data.error}: ${data.hint}` : data.error);
       }
 
-      setSessionId(data.session.id);
+      if (data.session?.id) {
+        setSessionId(data.session.id);
+      }
 
       const assistantMessage: Message = {
         id: Date.now().toString() + '-assistant',
         role: 'assistant',
-        content: data.response.content,
+        content: data.response?.content || 'No response received',
         timestamp: new Date(),
-        citations: data.response.citations,
-        responseType: data.response.type,
+        model: data.response?.model,
       };
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Chat error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       const errorMessage: Message = {
         id: Date.now().toString() + '-error',
         role: 'assistant',
-        content: "I'm sorry, I couldn't process your message. Please try again.",
+        content: errorMsg.includes('Ollama')
+          ? `**AI Connection Error**\n\n${errorMsg}\n\nMake sure Ollama is running:\n1. Install Ollama from https://ollama.ai\n2. Run: \`ollama pull llama3.2\`\n3. Start it: \`ollama serve\``
+          : `I'm sorry, I couldn't process your message: ${errorMsg}`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -181,11 +201,13 @@ export default function StudentChatPage() {
               {modes.find(m => m.value === mode)?.label}
             </span>
           </div>
-          {sessionId && (
-            <span className="text-slate-500 text-sm">
-              Session active
+          {/* AI Status Indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${aiStatus.connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-500">
+              {aiStatus.connected ? (aiStatus.model || 'AI Ready') : 'AI Offline'}
             </span>
-          )}
+          </div>
         </div>
         <button
           onClick={startNewChat}
