@@ -106,7 +106,7 @@ async function getAIResponse(
 
   // Try Ollama first for local dev
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+  const ollamaModel = process.env.OLLAMA_MODEL || 'codellama:7b';
 
   const ollamaMessages = [
     { role: 'system', content: systemPrompt },
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
           provider: 'ollama',
           status: 'connected',
           models: data.models?.map((m: { name: string }) => m.name) || [],
-          currentModel: process.env.OLLAMA_MODEL || 'llama3.2',
+          currentModel: process.env.OLLAMA_MODEL || 'codellama:7b',
           baseUrl: ollamaUrl,
         });
       }
